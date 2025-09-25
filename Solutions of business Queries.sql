@@ -1,190 +1,159 @@
--- Solutions of 15 business problems
+-- Solutions of 22 business problems
 
 -----------------------------------------------
 
--- 1. Count the number of Movies vs TV Shows
-
-SELECT 
-	type,
-	COUNT(*)
+-- Q1. How many movies and TV shows are available on Netflix?
+SELECT type, COUNT(*) AS total_count
 FROM netflix
-GROUP BY 1
+GROUP BY type;
 
--- 2. Find the most common rating for movies and TV shows
-
-WITH RatingCounts AS (
-    SELECT 
-        type,
-        rating,
-        COUNT(*) AS rating_count
-    FROM netflix
-    GROUP BY type, rating
-),
-RankedRatings AS (
-    SELECT 
-        type,
-        rating,
-        rating_count,
-        RANK() OVER (PARTITION BY type ORDER BY rating_count DESC) AS rank
-    FROM RatingCounts
-)
-SELECT 
-    type,
-    rating AS most_frequent_rating
-FROM RankedRatings
-WHERE rank = 1;
-
-
--- 3. List all movies released in a specific year (e.g., 2020)
-
-SELECT * 
+--Q2. Find the most common rating (like TV-MA, TV-14).
+SELECT rating, COUNT(*) AS total_count
 FROM netflix
-WHERE release_year = 2020
+GROUP BY rating
+ORDER BY total_count DESC
+LIMIT 1;
 
-
--- 4. Find the top 5 countries with the most content on Netflix
-
-SELECT * 
-FROM
-(
-	SELECT 
-		-- country,
-		UNNEST(STRING_TO_ARRAY(country, ',')) as country,
-		COUNT(*) as total_content
-	FROM netflix
-	GROUP BY 1
-)as t1
+--Q3. List the top 10 countries with the most content on Netflix.
+SELECT country, COUNT(*) AS total_titles
+FROM netflix
 WHERE country IS NOT NULL
-ORDER BY total_content DESC
-LIMIT 5
+GROUP BY country
+ORDER BY total_titles DESC
+LIMIT 10;
 
-
--- 5. Identify the longest movie
-
-SELECT 
-	*
+--Q4. How many movies were released each year on Netflix?
+SELECT release_year, COUNT(*) AS total_movies
 FROM netflix
 WHERE type = 'Movie'
-ORDER BY SPLIT_PART(duration, ' ', 1)::INT DESC
+GROUP BY release_year
+ORDER BY release_year;
 
-
--- 6. Find content added in the last 5 years
-SELECT
-*
+--Q5. Which year had the highest number of releases?
+SELECT release_year, COUNT(*) AS total_releases
 FROM netflix
-WHERE TO_DATE(date_added, 'Month DD, YYYY') >= CURRENT_DATE - INTERVAL '5 years'
+GROUP BY release_year
+ORDER BY total_releases DESC
+LIMIT 1;
 
-
--- 7. Find all the movies/TV shows by director 'Rajiv Chilaka'!
-
-SELECT *
-FROM
-(
-
-SELECT 
-	*,
-	UNNEST(STRING_TO_ARRAY(director, ',')) as director_name
-FROM 
-netflix
-)
-WHERE 
-	director_name = 'Rajiv Chilaka'
-
-
-
--- 8. List all TV shows with more than 5 seasons
-
-SELECT *
+--Q6. Find the top 5 directors with the most movies/TV shows.
+SELECT director, COUNT(*) AS total_titles
 FROM netflix
-WHERE 
-	TYPE = 'TV Show'
-	AND
-	SPLIT_PART(duration, ' ', 1)::INT > 5
+WHERE director IS NOT NULL
+GROUP BY director
+ORDER BY total_titles DESC
+LIMIT 5;
 
-
--- 9. Count the number of content items in each genre
-
-SELECT 
-	UNNEST(STRING_TO_ARRAY(listed_in, ',')) as genre,
-	COUNT(*) as total_content
+--Q7. What are the top 10 most common genres (listed_in)?
+SELECT TRIM(UNNEST(STRING_TO_ARRAY(listed_in, ','))) AS genre,
+       COUNT(*) AS total_titles
 FROM netflix
-GROUP BY 1
+GROUP BY genre
+ORDER BY total_titles DESC
+LIMIT 10;
 
-
--- 10. Find each year and the average numbers of content release by India on netflix. 
--- return top 5 year with highest avg content release !
-
-
-SELECT 
-	country,
-	release_year,
-	COUNT(show_id) as total_release,
-	ROUND(
-		COUNT(show_id)::numeric/
-								(SELECT COUNT(show_id) FROM netflix WHERE country = 'India')::numeric * 100 
-		,2
-		)
-		as avg_release
+--Q8. Count how many titles were added each year.
+SELECT EXTRACT(YEAR FROM TO_DATE(date_added, 'Month DD, YYYY')) AS year_added,
+       COUNT(*) AS total_titles
 FROM netflix
-WHERE country = 'India' 
-GROUP BY country, 2
-ORDER BY avg_release DESC 
-LIMIT 5
+WHERE date_added IS NOT NULL
+GROUP BY year_added
+ORDER BY year_added;
 
-
--- 11. List all movies that are documentaries
-SELECT * FROM netflix
-WHERE listed_in LIKE '%Documentaries'
-
-
-
--- 12. Find all content without a director
-SELECT * FROM netflix
-WHERE director IS NULL
-
-
--- 13. Find how many movies actor 'Salman Khan' appeared in last 10 years!
-
-SELECT * FROM netflix
-WHERE 
-	casts LIKE '%Salman Khan%'
-	AND 
-	release_year > EXTRACT(YEAR FROM CURRENT_DATE) - 10
-
-
--- 14. Find the top 10 actors who have appeared in the highest number of movies produced in India.
-
-
-
-SELECT 
-	UNNEST(STRING_TO_ARRAY(casts, ',')) as actor,
-	COUNT(*)
+--Q9. Find the average duration of Movies.
+SELECT AVG(CAST(SPLIT_PART(duration, ' ', 1) AS INT)) AS avg_movie_minutes
 FROM netflix
-WHERE country = 'India'
-GROUP BY 1
-ORDER BY 2 DESC
-LIMIT 10
+WHERE type = 'Movie';
 
-/*
-Question 15:
-Categorize the content based on the presence of the keywords 'kill' and 'violence' in 
-the description field. Label content containing these keywords as 'Bad' and all other 
-content as 'Good'. Count how many items fall into each category.
-*/
+--Q10. Show the distribution of TV Shows by number of seasons.
+SELECT REPLACE(duration, ' Seasons', '') AS seasons,
+       COUNT(*) AS total_shows
+FROM netflix
+WHERE type = 'TV Show'
+GROUP BY seasons
+ORDER BY CAST(seasons AS INT);
 
+--Q11. Which country has produced the most TV Shows?
+SELECT country, COUNT(*) AS total_shows
+FROM netflix
+WHERE type = 'TV Show' AND country IS NOT NULL
+GROUP BY country
+ORDER BY total_shows DESC
+LIMIT 1;
 
-SELECT 
-    category,
-	TYPE,
-    COUNT(*) AS content_count
-FROM (
-    SELECT 
-		*,
-        CASE 
-            WHEN description ILIKE '%kill%' OR description ILIKE '%violence%' THEN 'Bad'
-            ELSE 'Good'
-        END AS category
+--Q12. Which actor/actress appeared most frequently on Netflix titles?
+SELECT TRIM(UNNEST(STRING_TO_ARRAY(cast, ','))) AS actor,
+       COUNT(*) AS total_titles
+FROM netflix
+WHERE cast IS NOT NULL
+GROUP BY actor
+ORDER BY total_titles DESC
+LIMIT 1;
+
+--Q13. Find the titles that were released in India.
+SELECT title, type, release_year
+FROM netflix
+WHERE country ILIKE '%India%';
+
+--Q14. List all movies released after 2015.
+SELECT title, release_year
+FROM netflix
+WHERE type = 'Movie' AND release_year > 2015
+ORDER BY release_year;
+
+--Q15. Count how many Movies vs TV Shows were added in the last 5 years.
+SELECT type, COUNT(*) AS total_count
+FROM netflix
+WHERE date_added IS NOT NULL
+  AND EXTRACT(YEAR FROM TO_DATE(date_added, 'Month DD, YYYY')) >= EXTRACT(YEAR FROM CURRENT_DATE) - 5
+GROUP BY type;
+
+--Q16. Find titles that have more than 1 genre assigned.
+SELECT title, listed_in
+FROM netflix
+WHERE listed_in LIKE '%,%';
+
+--Q17. Get the percentage of Movies vs TV Shows on Netflix.
+SELECT type,
+       ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM netflix), 2) AS percentage
+FROM netflix
+GROUP BY type;
+
+--Q18. Find the oldest movie available on Netflix (by release year).
+SELECT title, release_year
+FROM netflix
+WHERE type = 'Movie'
+ORDER BY release_year ASC
+LIMIT 1;
+
+--Q19. Show the number of content added in each month (seasonality).
+SELECT TO_CHAR(TO_DATE(date_added, 'Month DD, YYYY'), 'Month') AS month_name,
+       COUNT(*) AS total_titles
+FROM netflix
+WHERE date_added IS NOT NULL
+GROUP BY month_name
+ORDER BY total_titles DESC;
+
+--Q20. Find how many titles do not have a director assigned.
+SELECT COUNT(*) AS missing_directors
+FROM netflix
+WHERE director IS NULL;
+
+--Q21. List the top 5 longest movies (by duration).
+SELECT title, duration
+FROM netflix
+WHERE type = 'Movie'
+ORDER BY CAST(SPLIT_PART(duration, ' ', 1) AS INT) DESC
+LIMIT 5;
+
+--Q22. Using a CTE, show the cumulative number of titles released year by year.
+WITH yearly_count AS (
+    SELECT release_year, COUNT(*) AS yearly_titles
     FROM netflix
-) AS categorized_content
-GROUP BY 1,2
-ORDER BY 2
+    GROUP BY release_year
+)
+SELECT release_year,
+       yearly_titles,
+       SUM(yearly_titles) OVER (ORDER BY release_year) AS cumulative_titles
+FROM yearly_count
+ORDER BY release_year;
